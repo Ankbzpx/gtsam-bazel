@@ -1,5 +1,5 @@
 # gtsam-bazel
-Build gtsam with bazel
+Build gtsam with bazel, tested on Manjaro
 
 ## Test
 Run official [ISAM2](https://github.com/borglab/gtsam/blob/develop/examples/VisualISAM2Example.cpp) example with
