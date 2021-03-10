@@ -1,0 +1,247 @@
+diff --git a/BUILD b/BUILD
+new file mode 100644
+index 000000000..c29bc0337
+--- /dev/null
++++ b/BUILD
+@@ -0,0 +1,52 @@
++load("//:gtsam.bzl", "gtsam_library")
++
++cc_library(
++    name = "GKlib",
++    srcs = glob(["gtsam/3rdparty/metis/GKlib/*.c"]),
++    hdrs = glob(["gtsam/3rdparty/metis/GKlib/*.h"]),
++    includes = ["gtsam/3rdparty/metis/GKlib"],
++    visibility = ["//visibility:public"],
++)
++
++cc_library(
++    name = "libmetis",
++    srcs = glob(["gtsam/3rdparty/metis/libmetis/*.c"]),
++    hdrs = glob(["gtsam/3rdparty/metis/libmetis/*.h"]),
++    includes = ["gtsam/3rdparty/metis/libmetis"],
++    visibility = ["//visibility:public"],
++    deps = [
++        ":GKlib",
++    ],
++)
++
++cc_library(
++    name = "SuiteSparse_config",
++    srcs = ["gtsam/3rdparty/SuiteSparse_config/SuiteSparse_config.c"],
++    hdrs = ["gtsam/3rdparty/SuiteSparse_config/SuiteSparse_config.h"],
++    includes = ["gtsam/3rdparty/SuiteSparse_config"],
++    visibility = ["//visibility:public"],
++)
++
++gtsam_library(
++    name = "libgtsam",
++    deps = [
++        ":SuiteSparse_config",
++        ":libmetis",
++    ],
++)
++
++cc_binary(
++    name = "visual-isam2-example",
++    srcs = ["examples/VisualISAM2Example.cpp"],
++    deps = [
++        ":sfm_data",
++    ],
++)
++
++cc_library(
++    name = "sfm_data",
++    srcs = ["examples/SFMdata.h"],
++    deps = [
++        ":libgtsam",
++    ],
++)
+\ No newline at end of file
+diff --git a/gtsam.bzl b/gtsam.bzl
+new file mode 100644
+index 000000000..f34f9508f
+--- /dev/null
++++ b/gtsam.bzl
+@@ -0,0 +1,32 @@
++def gtsam_library(name, deps = []):
++    gtsam = "external/%s" % native.repository_name().lstrip("@")
++    srcs = native.glob(["gtsam/**/*.cpp"], exclude = ["gtsam/3rdparty/**/*.cpp", "gtsam/precompiled_header.cpp", "gtsam/**/tests/*"]) + ["gtsam/3rdparty/CCOLAMD/Source/ccolamd.c"]
++    hrds = native.glob(["gtsam/**/*.h"], exclude = ["gtsam/base/chartTesting.h", "gtsam/precompiled_header.h", "gtsam/3rdparty/**/*.h"]) + native.glob(["gtsam/3rdparty/ceres/*.h"]) + ["gtsam/3rdparty/metis/include/metis.h"] + ["gtsam/3rdparty/CCOLAMD/Include/ccolamd.h"]
++    return native.cc_library(
++        name = name,
++        srcs = srcs + hrds,
++        hdrs = hrds,
++        copts = [
++            "-I" + gtsam,
++        ],
++        defines = [
++            "GTSAM_ALLOCATOR_STL",
++            "GTSAM_THROW_CHEIRALITY_EXCEPTION",
++            "GTSAM_ALLOW_DEPRECATED_SINCE_V4",
++        ],
++        includes = ["."],
++        visibility = ["//visibility:public"],
++        deps = deps + [
++            "@com_gitlab_libeigen_eigen//:eigen",
++            "@boost//:archive",
++            "@boost//:bind",
++            "@boost//:variant",
++            "@boost//:lexical_cast",
++            "@boost//:date_time",
++            "@boost//:math",
++            "@boost//:serialization",
++            "@boost//:core",
++            "@boost//:multiprecision",
++            "@boost//:filesystem",
++        ],
++    )
+\ No newline at end of file
+diff --git a/gtsam/config.h b/gtsam/config.h
+new file mode 100644
+index 000000000..ab878bd98
+--- /dev/null
++++ b/gtsam/config.h
+@@ -0,0 +1,82 @@
++/* ----------------------------------------------------------------------------
++
++ * GTSAM Copyright 2010, Georgia Tech Research Corporation,
++ * Atlanta, Georgia 30332-0415
++ * All Rights Reserved
++ * Authors: Frank Dellaert, et al. (see THANKS for the full author list)
++
++ * See LICENSE for the license information
++
++ * -------------------------------------------------------------------------- */
++
++/**
++ * @file    config.h
++ * @brief   Settings and paths configured with CMake
++ * @author  Richard Roberts
++ */
++
++#pragma once
++
++// Library version
++#define GTSAM_VERSION_MAJOR 4
++#define GTSAM_VERSION_MINOR 0
++#define GTSAM_VERSION_PATCH 3
++#define GTSAM_VERSION_NUMERIC 40003
++#define GTSAM_VERSION_STRING "4.0.3"
++
++// Paths to example datasets distributed with GTSAM
++#define GTSAM_SOURCE_TREE_DATASET_DIR "/home/ruichenzheng/gtsam/examples/Data"
++#define GTSAM_INSTALLED_DATASET_DIR "/gtsam_examples/Data"
++
++// Whether GTSAM is compiled to use quaternions for Rot3 (otherwise uses rotation matrices)
++/* #undef GTSAM_USE_QUATERNIONS */
++
++// Whether GTSAM is compiled to use Pose3::EXPMAP as the default coordinates mode for Pose3's retract and localCoordinates (otherwise, Pose3::FIRST_ORDER will be used)
++#define GTSAM_POSE3_EXPMAP
++
++// Whether GTSAM is compiled to use Rot3::EXPMAP as the default coordinates mode for Rot3's retract and localCoordinates (otherwise, Pose3::CAYLEY will be used)
++#ifndef GTSAM_USE_QUATERNIONS
++	#define GTSAM_ROT3_EXPMAP
++#endif
++
++// Whether we are using TBB (if TBB was found and GTSAM_WITH_TBB is enabled in CMake)
++/* #undef GTSAM_USE_TBB */
++
++// Whether we are using a TBB version higher than 2020
++/* #undef TBB_GREATER_EQUAL_2020 */
++
++// Whether we are using system-Eigen or our own patched version
++/* #undef GTSAM_USE_SYSTEM_EIGEN */
++
++// Whether Eigen will use MKL (if MKL was found and GTSAM_WITH_EIGEN_MKL is enabled in CMake)
++/* #undef GTSAM_USE_EIGEN_MKL */
++/* #undef EIGEN_USE_MKL_ALL */
++
++// Whether Eigen with MKL will use OpenMP (if OpenMP was found, Eigen uses MKL, and GTSAM_WITH_EIGEN_MKL_OPENMP is enabled in CMake)
++/* #undef GTSAM_USE_EIGEN_MKL_OPENMP */
++
++// Eigen library version (needed to avoid mixing versions, which often leads
++// to segfaults)
++#define GTSAM_EIGEN_VERSION_WORLD 3
++#define GTSAM_EIGEN_VERSION_MAJOR 3
++#define GTSAM_EIGEN_VERSION_MINOR 7
++
++// The default allocator to use
++/* #undef GTSAM_ALLOCATOR_BOOSTPOOL */
++/* #undef GTSAM_ALLOCATOR_TBB */
++#define GTSAM_ALLOCATOR_STL
++
++// Option for not throwing the CheiralityException for points that are behind a camera
++#define GTSAM_THROW_CHEIRALITY_EXCEPTION
++
++// Make sure dependent projects that want it can see deprecated functions
++#define GTSAM_ALLOW_DEPRECATED_SINCE_V4
++
++// Publish flag about Eigen typedef
++/* #undef GTSAM_TYPEDEF_POINTS_TO_VECTORS */
++
++// Support Metis-based nested dissection
++#define GTSAM_SUPPORT_NESTED_DISSECTION
++
++// Support Metis-based nested dissection
++#define GTSAM_TANGENT_PREINTEGRATION
+diff --git a/gtsam/dllexport.h b/gtsam/dllexport.h
+new file mode 100644
+index 000000000..eeb363b16
+--- /dev/null
++++ b/gtsam/dllexport.h
+@@ -0,0 +1,55 @@
++/* ----------------------------------------------------------------------------
++
++ * GTSAM Copyright 2010, Georgia Tech Research Corporation, 
++ * Atlanta, Georgia 30332-0415
++ * All Rights Reserved
++ * Authors: Frank Dellaert, et al. (see THANKS for the full author list)
++
++ * See LICENSE for the license information
++
++ * -------------------------------------------------------------------------- */
++
++/**
++ * @file     dllexport.h
++ * @brief    Symbols for exporting classes and methods from DLLs
++ * @author   Richard Roberts
++ * @date     Mar 9, 2013
++ */
++
++// Macros for exporting DLL symbols on Windows
++// Usage example:
++// In header file:
++//   class GTSAM_EXPORT MyClass { ... };
++//   
++// Results in the following declarations:
++// When included while compiling the GTSAM library itself:
++//   class __declspec(dllexport) MyClass { ... };
++// When included while compiling other code against GTSAM:
++//   class __declspec(dllimport) MyClass { ... };
++
++#pragma once
++
++// Whether GTSAM is compiled as static or DLL in windows. 
++// This will be used to decide whether include __declspec(dllimport) or not in headers
++#define BUILD_SHARED_LIBS
++
++#ifdef _WIN32
++#  ifndef BUILD_SHARED_LIBS
++#    define GTSAM_EXPORT
++#    define GTSAM_EXTERN_EXPORT extern
++#  else
++#    ifdef GTSAM_EXPORTS
++#      define GTSAM_EXPORT __declspec(dllexport)
++#      define GTSAM_EXTERN_EXPORT __declspec(dllexport) extern
++#    else
++#      define GTSAM_EXPORT __declspec(dllimport)
++#      define GTSAM_EXTERN_EXPORT __declspec(dllimport)
++#    endif
++#  endif
++#else
++#  define GTSAM_EXPORT
++#  define GTSAM_EXTERN_EXPORT extern
++#endif
++
++#undef BUILD_SHARED_LIBS
++
